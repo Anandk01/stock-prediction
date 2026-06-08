@@ -3,7 +3,7 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, TrendingUp, TrendingDown, Info } from "lucide-react";
+import { TrendingUp, TrendingDown, Info } from "lucide-react";
 import api from "@/lib/api";
 
 export default function HoldingsPage() {
@@ -38,7 +38,7 @@ export default function HoldingsPage() {
 
     if (assets.length === 0) {
         return (
-            <div className="min-h-screen bg-[#020617] text-white p-8 flex flex-col items-center justify-center">
+            <div className="min-h-screen text-white p-8 flex flex-col items-center justify-center">
                 <p className="text-gray-500 mb-4 italic">No holdings detected in current session.</p>
                 <button onClick={() => router.push("/upload")} className="px-6 py-2 bg-cyan-500 text-black font-black rounded-xl">Upload Now</button>
             </div>
@@ -46,10 +46,7 @@ export default function HoldingsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#020617] text-white p-8">
-            <button onClick={() => router.push("/dashboard")} className="flex items-center gap-2 text-gray-500 hover:text-white mb-12 transition-colors">
-                <ArrowLeft size={20} /> Back to Dashboard
-            </button>
+        <div className="text-white p-8">
 
             <header className="mb-12">
                 <h1 className="text-5xl font-black mb-4">Detailed Analysis</h1>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { UploadCloud, CheckCircle, AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { UploadCloud, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import HoldingsReview from "@/components/HoldingsReview";
@@ -97,11 +97,7 @@ export default function UploadPage() {
     // Show holdings review after parsing or while processing
     if ((state === "parsed" || state === "processing" || state === "complete") && parsedData) {
         return (
-            <div className="min-h-screen bg-[#020617] text-white p-8 font-sans">
-                <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-500 hover:text-white mb-12 transition-colors">
-                    <ArrowLeft size={20} /> Back
-                </button>
-
+            <div className="text-white p-8 font-sans">
                 <HoldingsReview
                     holdings={parsedData.holdings}
                     casTotal={parsedData.casTotal}
@@ -117,10 +113,7 @@ export default function UploadPage() {
 
     // Upload UI
     return (
-        <div className="min-h-screen bg-[#020617] text-white p-8 font-sans">
-            <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-500 hover:text-white mb-12 transition-colors">
-                <ArrowLeft size={20} /> Back
-            </button>
+        <div className="text-white p-8 font-sans">
 
             <div className="max-w-2xl mx-auto">
                 <header className="text-center mb-12">

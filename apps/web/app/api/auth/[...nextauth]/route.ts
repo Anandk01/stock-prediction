@@ -51,7 +51,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     );
 }
 
-export const authOptions = {
+const authOptions = {
     providers,
     debug: true, // Enable debug logs to troubleshoot redirect issues
     callbacks: {

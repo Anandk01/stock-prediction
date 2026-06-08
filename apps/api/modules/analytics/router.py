@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 import pandas as pd
+import yfinance as yf
 from core.models import NormalizedHolding
 from .service import analytics_engine, sentiment_service, PricePredictor
 from .score_service import score_service
@@ -346,3 +347,326 @@ async def get_efficient_frontier(holdings: List[NormalizedHolding], user=Depends
     except Exception as e:
         print(f"Error generating frontier: {e}")
         raise HTTPException(status_code=500, detail="Frontier generation failed")
+
+
+# ==========================================
+# HACKATHON STOCKS API ROUTER
+# ==========================================
+import sqlite3
+import json
+from datetime import datetime
+from fastapi import Query
+from pydantic import BaseModel
+from .predictive_service import (
+    DataCollectorService,
+    FeatureEngineeringService,
+    SentimentService,
+    PredictionEngine,
+    ExplanationService,
+    IncrementalTrainer,
+    DB_PATH
+)
+
+stocks_router = APIRouter()
+
+class StockUpdateRequest(BaseModel):
+    symbol: str
+
+@stocks_router.get("/predictions")
+async def get_stock_predictions(symbol: Optional[str] = None, user=Depends(get_current_user)):
+    """
+    Get predictions, sentiment, explainability, and technical indicators.
+    Fallback to default watchlist if no portfolio or symbol provided.
+    """
+    from modules.portfolio.service import portfolio_service
+    
+    symbols_to_predict = []
+    if symbol:
+        symbols_to_predict = [symbol.upper()]
+    else:
+        # Load from user portfolio
+        try:
+            portfolio = await portfolio_service.get_portfolio(user.id)
+            if portfolio and portfolio.holdings:
+                # filter stock symbols
+                symbols_to_predict = [
+                    h.symbol.upper() for h in portfolio.holdings 
+                    if h.asset_type == "STOCK" and h.symbol and h.symbol != "Unresolved"
+                ]
+        except Exception as e:
+            print(f"Error fetching portfolio for predictions: {e}")
+            
+    # Fallback watchlist for hackathon demo
+    if not symbols_to_predict:
+        symbols_to_predict = ["TCS.NS", "INFY.NS", "RELIANCE.NS"]
+        
+    results = []
+    for sym in symbols_to_predict:
+        # Smart symbol resolution: if it already has a suffix, use as-is.
+        # Otherwise try without suffix first (international), then with .NS (Indian).
+        clean_sym = sym
+        if not sym.endswith(".NS") and not sym.endswith(".BO") and "." not in sym:
+            # Test if it works as a plain symbol (e.g. MSFT, AAPL, GOOGL)
+            test_ticker = yf.Ticker(sym)
+            test_df = test_ticker.history(period="5d", interval="1d")
+            if not test_df.empty:
+                clean_sym = sym  # International stock, use as-is
+            else:
+                clean_sym = f"{sym}.NS"  # Assume Indian NSE stock
+            
+        try:
+            # 1. Initialize data & pre-train if database empty for this stock
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM candles WHERE symbol = ?", (clean_sym,))
+            candle_count = cursor.fetchone()[0]
+            conn.close()
+            
+            if candle_count < 50:
+                print(f"Bootstrapping historical data for new stock: {clean_sym}")
+                DataCollectorService.collect_historical_data(clean_sym)
+                IncrementalTrainer.pretrain_on_history(clean_sym, "2h")
+                IncrementalTrainer.pretrain_on_history(clean_sym, "1d")
+                
+            # 2. Fetch live metrics
+            live_data = DataCollectorService.fetch_latest_candles(clean_sym)
+            current_price = live_data["current_price"]
+            daily_change = live_data["daily_change"]
+            volume = live_data["volume"]
+            
+            # 3. Get sentiment score
+            sent_data = SentimentService.fetch_headlines_and_sentiment(clean_sym)
+            sent_score = sent_data["score"]
+            
+            # 4. Generate features
+            df_5m = FeatureEngineeringService.get_features_df(clean_sym, "5m", sentiment_score=sent_score)
+            df_1d = FeatureEngineeringService.get_features_df(clean_sym, "1d", sentiment_score=sent_score)
+            
+            feat_5m = FeatureEngineeringService.extract_latest_feature_dict(df_5m)
+            feat_1d = FeatureEngineeringService.extract_latest_feature_dict(df_1d)
+            
+            # Extract basic indicators for UI
+            rsi = feat_5m.get("rsi_14", 50.0)
+            macd = feat_5m.get("macd", 0.0)
+            macd_signal = feat_5m.get("macd_signal", 0.0)
+            
+            # Calculate Trend Strength
+            ema_ratio = feat_5m.get("ema_20_ratio", 0.0)
+            trend_strength = "Neutral"
+            if ema_ratio < -0.01:
+                trend_strength = "Strong Uptrend"
+            elif ema_ratio < -0.002:
+                trend_strength = "Weak Uptrend"
+            elif ema_ratio > 0.01:
+                trend_strength = "Strong Downtrend"
+            elif ema_ratio > 0.002:
+                trend_strength = "Weak Downtrend"
+                
+            # 5. Run River Predictions
+            pred_2h = PredictionEngine.predict_stock(clean_sym, feat_5m, "2h")
+            pred_1d = PredictionEngine.predict_stock(clean_sym, feat_1d, "1d")
+            
+            # 6. Recommendation logic (Based on 2h Intraday trend for quick feedback)
+            rec = "HOLD"
+            conf = pred_2h["confidence"]
+            ret = pred_2h["expected_return"]
+            direction = pred_2h["direction"]
+            
+            if direction == "Bullish" and conf > 0.75 and ret > 0.5:
+                rec = "BUY"
+            elif direction == "Bearish" and conf > 0.75:
+                rec = "SELL"
+                
+            # 7. Generate Explainability Justification
+            explanation = ExplanationService.generate_explanation(clean_sym, direction, conf, ret, feat_5m)
+            
+            # 8. Running Accuracy Metrics
+            metrics = IncrementalTrainer.get_monitoring_metrics(clean_sym)
+            
+            results.append({
+                "symbol": clean_sym,
+                "current_price": round(current_price, 2),
+                "daily_change": round(daily_change, 2),
+                "volume": volume,
+                "rsi": round(rsi, 2),
+                "macd": round(macd, 4),
+                "macd_signal": round(macd_signal, 4),
+                "trend_strength": trend_strength,
+                "predictions": {
+                    "2h": {
+                        "direction": pred_2h["direction"],
+                        "confidence": round(pred_2h["confidence"] * 100, 1),
+                        "expected_return": pred_2h["expected_return"],
+                        "explanation": explanation
+                    },
+                    "1d": {
+                        "direction": pred_1d["direction"],
+                        "confidence": round(pred_1d["confidence"] * 100, 1),
+                        "expected_return": pred_1d["expected_return"],
+                        "explanation": ExplanationService.generate_explanation(clean_sym, pred_1d["direction"], pred_1d["confidence"], pred_1d["expected_return"], feat_1d)
+                    }
+                },
+                "recommendation": rec,
+                "sentiment": {
+                    "score": round(sent_score, 2),
+                    "classification": sent_data["classification"],
+                    "headlines": sent_data["headlines"]
+                },
+                "metrics": metrics
+            })
+        except Exception as e:
+            print(f"Error preparing prediction for {sym}: {e}")
+            import traceback
+            traceback.print_exc()
+            
+    return results
+
+@stocks_router.post("/update")
+async def update_stock_predictions(request: StockUpdateRequest, user=Depends(get_current_user)):
+    """
+    Trigger manual incremental update:
+    Fetch live candles -> Run Sentiment -> Run Incremental Learner -> Store new prediction
+    """
+    sym = request.symbol.upper()
+    clean_sym = sym
+    if not sym.endswith(".NS") and not sym.endswith(".BO") and "." not in sym:
+        # Test if it works as a plain symbol (international stock)
+        test_ticker = yf.Ticker(sym)
+        test_df = test_ticker.history(period="5d", interval="1d")
+        if not test_df.empty:
+            clean_sym = sym
+        else:
+            clean_sym = f"{sym}.NS"
+        
+    try:
+        print(f"Updating predictions and training incrementally for {clean_sym}...")
+        
+        # 1. Fetch live candles
+        live_data = DataCollectorService.fetch_latest_candles(clean_sym)
+        
+        # 2. Get sentiment
+        sent_data = SentimentService.fetch_headlines_and_sentiment(clean_sym)
+        sent_score = sent_data["score"]
+        
+        # 3. Evaluate matured predictions & trigger learn_one() incremental learning
+        samples_learned = IncrementalTrainer.evaluate_and_train_live(clean_sym)
+        
+        # 4. Compute latest features for new prediction entry
+        df_5m = FeatureEngineeringService.get_features_df(clean_sym, "5m", sentiment_score=sent_score)
+        df_1d = FeatureEngineeringService.get_features_df(clean_sym, "1d", sentiment_score=sent_score)
+        
+        feat_5m = FeatureEngineeringService.extract_latest_feature_dict(df_5m)
+        feat_1d = FeatureEngineeringService.extract_latest_feature_dict(df_1d)
+        
+        # 5. Make predictions
+        pred_2h = PredictionEngine.predict_stock(clean_sym, feat_5m, "2h")
+        pred_1d = PredictionEngine.predict_stock(clean_sym, feat_1d, "1d")
+        
+        # 6. Save current predictions into DB for future evaluation
+        # Store both 2h and 1d
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        pred_time = datetime.utcnow().isoformat()
+        
+        # Store 2h
+        cursor.execute("""
+            INSERT INTO predictions (symbol, prediction_time, target_type, predicted_direction, confidence, expected_return, explanation, features, is_evaluated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """, (
+            clean_sym, pred_time, "2h", pred_2h["direction"], pred_2h["confidence"], pred_2h["expected_return"],
+            ExplanationService.generate_explanation(clean_sym, pred_2h["direction"], pred_2h["confidence"], pred_2h["expected_return"], feat_5m),
+            json.dumps(feat_5m)
+        ))
+        
+        # Store 1d
+        cursor.execute("""
+            INSERT INTO predictions (symbol, prediction_time, target_type, predicted_direction, confidence, expected_return, explanation, features, is_evaluated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+        """, (
+            clean_sym, pred_time, "1d", pred_1d["direction"], pred_1d["confidence"], pred_1d["expected_return"],
+            ExplanationService.generate_explanation(clean_sym, pred_1d["direction"], pred_1d["confidence"], pred_1d["expected_return"], feat_1d),
+            json.dumps(feat_1d)
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        # 7. Return refreshed predictions list
+        refreshed_data = await get_stock_predictions(clean_sym, user)
+        return {
+            "status": "success",
+            "samples_learned": samples_learned,
+            "message": f"Successfully performed incremental updates. Model trained on {samples_learned} matured samples.",
+            "predictions": refreshed_data
+        }
+        
+    except Exception as e:
+        print(f"Error during incremental update for {clean_sym}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Incremental update failed: {str(e)}")
+
+@stocks_router.get("/timeline")
+async def get_prediction_timeline(symbol: str, user=Depends(get_current_user)):
+    """
+    Get recent prediction history timeline for display.
+    """
+    sym = symbol.upper()
+    clean_sym = sym
+    if not sym.endswith(".NS") and not sym.endswith(".BO") and "." not in sym:
+        clean_sym = f"{sym}.NS"
+        
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT prediction_time, target_type, predicted_direction, actual_direction, confidence, is_evaluated
+        FROM predictions 
+        WHERE symbol = ? 
+        ORDER BY prediction_time DESC LIMIT 10
+    """, (clean_sym,))
+    rows = cursor.fetchall()
+    conn.close()
+    
+    timeline = []
+    for row in rows:
+        timeline.append({
+            "time": row[0],
+            "target": row[1],
+            "predicted": row[2],
+            "actual": row[3] if row[5] == 1 else "Pending",
+            "confidence": round(row[4] * 100, 1),
+            "status": "correct" if row[5] == 1 and row[2] == row[3] else ("incorrect" if row[5] == 1 else "pending")
+        })
+        
+    return timeline
+
+@stocks_router.get("/top-picks")
+async def get_top_picks(user=Depends(get_current_user)):
+    """
+    Find top 3 BUY signals with highest confidence.
+    """
+    # Fetch for standard watchlist
+    watchlist = ["TCS.NS", "INFY.NS", "RELIANCE.NS", "AAPL", "MSFT", "GOOGL"]
+    
+    all_picks = []
+    for sym in watchlist:
+        try:
+            preds = await get_stock_predictions(sym, user)
+            if preds:
+                data = preds[0]
+                if data["recommendation"] == "BUY":
+                    all_picks.append({
+                        "symbol": data["symbol"],
+                        "price": data["current_price"],
+                        "change": data["daily_change"],
+                        "confidence": data["predictions"]["2h"]["confidence"],
+                        "expected_return": data["predictions"]["2h"]["expected_return"]
+                    })
+        except Exception:
+            pass
+            
+    # Sort by confidence descending
+    all_picks.sort(key=lambda x: x["confidence"], reverse=True)
+    return all_picks[:3]
+

@@ -9,7 +9,7 @@
     "scripts": {
         "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
         "dev:web": "cd apps/web && npm run dev",
-        "dev:api": "cd apps/api && .venv\\Scripts\\python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000",
+        "dev:api": "cd apps/api && .venv\\Scripts\\python -m uvicorn main:app --reload --reload-dir core --reload-dir modules --host 127.0.0.1 --port 8000",
         "build": "npm run build:web",
         "build:web": "cd apps/web && npm run build"
     },

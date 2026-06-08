@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import List, Optional
-from odmantic import Model, EmbeddedModel, Field
-from pydantic import field_validator
+from pydantic import BaseModel, field_validator
 from enum import Enum
+
 
 class AssetType(str, Enum):
     STOCK = "STOCK"
@@ -12,10 +12,12 @@ class AssetType(str, Enum):
     CASH = "CASH"
     UNKNOWN = "UNKNOWN"
 
+
 class AccountType(str, Enum):
     DEMAT = "DEMAT"
     SOA = "SOA"
     UNKNOWN = "UNKNOWN"
+
 
 class AssetClass(str, Enum):
     MUTUAL_FUNDS = "Mutual Funds"
@@ -26,18 +28,21 @@ class AssetClass(str, Enum):
     NPS = "NPS"
     OTHERS = "Others"
 
+
 class RiskCategory(str, Enum):
     LOW = "LOW"
     MODERATE = "MODERATE"
     HIGH = "HIGH"
 
-class ParsedHolding(EmbeddedModel):
+
+class ParsedHolding(BaseModel):
     raw_name: str
     isin: Optional[str] = None
     quantity: float
     invested_value: float
 
-class NormalizedHolding(EmbeddedModel):
+
+class NormalizedHolding(BaseModel):
     symbol: Optional[str] = None
     isin: Optional[str] = None
     asset_name: str
@@ -55,42 +60,33 @@ class NormalizedHolding(EmbeddedModel):
     def round_financials(cls, v: float) -> float:
         return round(v, 4)
 
-class Portfolio(Model):
-    user_id: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    holdings: List[NormalizedHolding] = Field(default_factory=list)
-    
-    # Persisted Analytics and Insights
-    metrics: Optional[dict] = Field(default=None)
-    allocation: Optional[List[dict]] = Field(default=None)
-    ai_strategy: Optional[dict] = Field(default=None)
-    
-    model_config = {
-        "collection": "portfolios"
-    }
 
-class ParsedPortfolio(Model):
-    """Temporary storage for parsed holdings before processing"""
+class Portfolio(BaseModel):
+    id: Optional[int] = None
     user_id: str
-    holdings: List[NormalizedHolding] = Field(default_factory=list)
-    cas_total: float = 0.0  # Total value from CAS header
-    extracted_total: float = 0.0  # Sum of extracted holdings
-    confidence: float = 0.0  # Parsing confidence score (0-1)
-    format_type: str = "UNKNOWN"  # "NSDL", "CDSL", "CAMS", etc.
-    status: str = "parsed"  # "parsed", "processing", "completed", "failed"
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    
-    model_config = {
-        "collection": "parsed_portfolios"
-    }
+    created_at: datetime = None
+    holdings: List[NormalizedHolding] = []
+    metrics: Optional[dict] = None
+    allocation: Optional[List[dict]] = None
+    ai_strategy: Optional[dict] = None
 
-class User(Model):
-    email: str = Field(unique=True)
+
+class ParsedPortfolio(BaseModel):
+    id: Optional[int] = None
+    user_id: str
+    holdings: List[NormalizedHolding] = []
+    cas_total: float = 0.0
+    extracted_total: float = 0.0
+    confidence: float = 0.0
+    format_type: str = "UNKNOWN"
+    status: str = "parsed"
+    created_at: datetime = None
+
+
+class User(BaseModel):
+    id: Optional[int] = None
+    email: str
     hashed_password: str
     full_name: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = None
     is_active: bool = True
-    
-    model_config = {
-        "collection": "users"
-    }
