@@ -47,9 +47,13 @@ venv.bak/
 
 # Database files
 *.sqlite3
+*.db
+
+# ML Models (large binary files)
+*.pkl
 
 # Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -58,7 +62,24 @@ yarn-error.log*
 # OS Files
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Project Specific
+# IDE
+.vscode/
+.idea/
+
+# Project Specific Data
 apps/api/data/
 apps/api/downloads/
+apps/api/demo_portfolio.pdf
+
+# Parquet / cached market data
+*.parquet
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Misc
+*.swp
+*.swo
+*~
