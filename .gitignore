@@ -18,12 +18,12 @@ __pycache__/
 *.so
 .Python
 build/
+# Python build artifacts
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
