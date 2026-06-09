@@ -252,30 +252,6 @@ export default function PredictionsPage() {
                             </div>
                         </div>
 
-                        {/* Live Technical Stats */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="glass p-4 rounded-2xl border border-white/5 bg-white/[0.01]">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">RSI (14)</div>
-                                <div className="text-lg font-black">{currentData.rsi}</div>
-                                <span className={`text-[10px] font-semibold ${currentData.rsi > 70 ? "text-rose-400" : (currentData.rsi < 30 ? "text-emerald-400" : "text-gray-500")}`}>
-                                    {currentData.rsi > 70 ? "Overbought" : (currentData.rsi < 30 ? "Oversold" : "Neutral")}
-                                </span>
-                            </div>
-                            <div className="glass p-4 rounded-2xl border border-white/5 bg-white/[0.01]">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">MACD</div>
-                                <div className="text-lg font-black">{currentData.macd}</div>
-                                <span className="text-[10px] text-gray-500 font-semibold">Signal: {currentData.macd_signal}</span>
-                            </div>
-                            <div className="glass p-4 rounded-2xl border border-white/5 bg-white/[0.01]">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Trend Strength</div>
-                                <div className="text-lg font-black text-purple-400">{currentData.trend_strength}</div>
-                            </div>
-                            <div className="glass p-4 rounded-2xl border border-white/5 bg-white/[0.01]">
-                                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-1">Volume</div>
-                                <div className="text-lg font-black">{(currentData.volume / 1000).toFixed(1)}K</div>
-                            </div>
-                        </div>
-
                         {/* Prediction Engine (Intraday & Daily Side-by-side) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {/* 2-Hour Intraday */}
