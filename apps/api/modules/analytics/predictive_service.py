@@ -385,6 +385,7 @@ class PredictionEngine:
     def predict_stock(symbol: str, features: dict, target_type: str) -> dict:
         """
         Generate prediction: direction, confidence, expected_return.
+        Uses ML model if trained, otherwise falls back to rule-based technical analysis.
         """
         if not features:
             return {
@@ -396,23 +397,25 @@ class PredictionEngine:
         model = PredictionEngine.load_or_init_model(symbol, target_type)
         
         # Predict Class
-        pred_label = model.predict_one(features) or "Sideways"
+        pred_label = model.predict_one(features)
         
         # Predict Probabilities
         proba = model.predict_proba_one(features)
         
         # Compute confidence (max probability)
         confidence = 0.50
-        if proba:
+        if proba and len(proba) > 0:
             confidence = float(max(proba.values()))
+        
+        # If model returns None or Sideways with low confidence, use rule-based fallback
+        if pred_label is None or (pred_label == "Sideways" and confidence <= 0.50):
+            pred_label, confidence = PredictionEngine._rule_based_prediction(features)
             
-        # Expected return estimation based on trend features & sentiment
-        # Simple heuristic mapping since classification model predicts direction
+        # Expected return estimation
         rsi = features.get('rsi_14', 50.0)
         sent = features.get('sentiment_score', 0.0)
         ret_1 = features.get('ret_1', 0.0)
         
-        # Simple expected return proxy
         expected_ret = (sent * 0.4) + (ret_1 * 1.5)
         if pred_label == "Bullish":
             expected_ret += abs(expected_ret) * 0.2 + 0.3
@@ -426,6 +429,77 @@ class PredictionEngine:
             "confidence": round(confidence, 3),
             "expected_return": round(expected_ret, 2)
         }
+
+    @staticmethod
+    def _rule_based_prediction(features: dict) -> tuple:
+        """
+        Rule-based fallback using RSI, MACD, EMA, sentiment when ML model is untrained.
+        Returns (direction, confidence).
+        """
+        rsi = features.get('rsi_14', 50.0)
+        macd = features.get('macd', 0.0)
+        macd_signal = features.get('macd_signal', 0.0)
+        ema_ratio = features.get('ema_20_ratio', 0.0)
+        sent = features.get('sentiment_score', 0.0)
+        ret_1 = features.get('ret_1', 0.0)
+        rel_vol = features.get('relative_volume', 1.0)
+        
+        bullish_score = 0
+        bearish_score = 0
+        
+        # RSI signals
+        if rsi < 30:
+            bullish_score += 2  # Oversold = likely bounce
+        elif rsi < 40:
+            bullish_score += 1
+        elif rsi > 70:
+            bearish_score += 2  # Overbought = likely pullback
+        elif rsi > 60:
+            bearish_score += 1
+            
+        # MACD crossover
+        if macd > macd_signal:
+            bullish_score += 1
+        elif macd < macd_signal:
+            bearish_score += 1
+            
+        # EMA trend (negative ema_ratio means price is ABOVE ema = bullish)
+        if ema_ratio < -0.005:
+            bullish_score += 1
+        elif ema_ratio > 0.005:
+            bearish_score += 1
+            
+        # Sentiment
+        if sent > 0.1:
+            bullish_score += 1
+        elif sent < -0.1:
+            bearish_score += 1
+            
+        # Recent momentum
+        if ret_1 > 0.005:
+            bullish_score += 1
+        elif ret_1 < -0.005:
+            bearish_score += 1
+            
+        # Volume confirmation
+        if rel_vol > 1.3:
+            if bullish_score > bearish_score:
+                bullish_score += 1
+            elif bearish_score > bullish_score:
+                bearish_score += 1
+        
+        total = bullish_score + bearish_score
+        if total == 0:
+            return ("Sideways", 0.50)
+            
+        if bullish_score > bearish_score:
+            confidence = min(0.55 + (bullish_score - bearish_score) * 0.08, 0.85)
+            return ("Bullish", confidence)
+        elif bearish_score > bullish_score:
+            confidence = min(0.55 + (bearish_score - bullish_score) * 0.08, 0.85)
+            return ("Bearish", confidence)
+        else:
+            return ("Sideways", 0.52)
 
 # ==========================================
 # EXPLANATION SERVICE
