@@ -166,7 +166,7 @@ export default function LoginPage() {
                                 <input type="checkbox" className="w-4 h-4 rounded border-white/10 bg-white/5 accent-cyan-500" />
                                 Remember me
                             </label>
-                            <a href="#" onClick={(e) => { e.preventDefault(); alert('Please contact support to reset your password.'); }} className="text-cyan-400 font-bold hover:text-cyan-300 transition-colors">Forgot password?</a>
+                            <Link href="/forgot-password" className="text-cyan-400 font-bold hover:text-cyan-300 transition-colors">Forgot password?</Link>
                         </div>
 
                         {status === 'error' && (

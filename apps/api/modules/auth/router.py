@@ -86,6 +86,53 @@ async def register(user: UserCreate):
     return UserOut(id=str(user_id), email=user.email, is_active=True)
 
 
+class VerifyEmailRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    new_password: str
+
+
+@router.post("/verify-email")
+async def verify_email(request: VerifyEmailRequest):
+    """Check if email exists in the database."""
+    db_path = get_db_path()
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("SELECT id FROM users WHERE email = ?", (request.email,))
+        row = await cursor.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="No account found with this email address.")
+
+    return {"status": "found", "message": "Email verified."}
+
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """Reset user password."""
+    if len(request.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    db_path = get_db_path()
+    async with aiosqlite.connect(db_path) as db:
+        cursor = await db.execute("SELECT id FROM users WHERE email = ?", (request.email,))
+        row = await cursor.fetchone()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="No account found with this email address.")
+
+        hashed_password = get_password_hash(request.new_password)
+        await db.execute(
+            "UPDATE users SET hashed_password = ? WHERE email = ?",
+            (hashed_password, request.email)
+        )
+        await db.commit()
+
+    return {"status": "success", "message": "Password reset successfully."}
+
+
 @router.post("/login", response_model=Token)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     print(f"DEBUG: Login attempt for: {form_data.username}")
