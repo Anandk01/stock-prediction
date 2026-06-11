@@ -472,9 +472,9 @@ async def get_stock_predictions(symbol: Optional[str] = None, user=Depends(get_c
             ret = pred_2h["expected_return"]
             direction = pred_2h["direction"]
             
-            if direction == "Bullish" and conf > 0.75 and ret > 0.5:
+            if direction == "Bullish" and conf > 0.55 and ret > 0.1:
                 rec = "BUY"
-            elif direction == "Bearish" and conf > 0.75:
+            elif direction == "Bearish" and conf > 0.55:
                 rec = "SELL"
                 
             # 7. Generate Explainability Justification

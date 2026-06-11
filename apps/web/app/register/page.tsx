@@ -27,7 +27,26 @@ export default function RegisterPage() {
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.email || !formData.password) return;
+        
+        // Validation
+        if (!formData.email || !formData.password) {
+            setStatus('error');
+            setMessage('Email and password are required.');
+            return;
+        }
+        
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email)) {
+            setStatus('error');
+            setMessage('Please enter a valid email address.');
+            return;
+        }
+        
+        if (formData.password.length < 6) {
+            setStatus('error');
+            setMessage('Password must be at least 6 characters long.');
+            return;
+        }
 
         try {
             setStatus('loading');

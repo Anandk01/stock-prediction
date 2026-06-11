@@ -24,7 +24,20 @@ export default function LoginPage() {
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.email || !formData.password) return;
+        
+        // Validation
+        if (!formData.email || !formData.password) {
+            setStatus('error');
+            setMessage('Email and password are required.');
+            return;
+        }
+        
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(formData.email)) {
+            setStatus('error');
+            setMessage('Please enter a valid email address.');
+            return;
+        }
 
         try {
             setStatus('loading');
@@ -153,7 +166,7 @@ export default function LoginPage() {
                                 <input type="checkbox" className="w-4 h-4 rounded border-white/10 bg-white/5 accent-cyan-500" />
                                 Remember me
                             </label>
-                            <a href="#" className="text-cyan-400 font-bold hover:text-cyan-300 transition-colors">Forgot password?</a>
+                            <a href="#" onClick={(e) => { e.preventDefault(); alert('Please contact support to reset your password.'); }} className="text-cyan-400 font-bold hover:text-cyan-300 transition-colors">Forgot password?</a>
                         </div>
 
                         {status === 'error' && (
