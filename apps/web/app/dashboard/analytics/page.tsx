@@ -193,16 +193,18 @@ export default function AnalyticsPage() {
                                                 <div className="text-[10px] text-gray-500">₹{pick.price.toLocaleString()}</div>
                                             </div>
                                             <div className="text-right">
-                                                <span className="text-[10px] font-black text-emerald-400 px-2 py-0.5 bg-emerald-500/10 rounded-full">
-                                                    BUY ({pick.confidence}%)
+                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${pick.recommendation === "BUY" ? "text-emerald-400 bg-emerald-500/10" : pick.recommendation === "SELL" ? "text-rose-400 bg-rose-500/10" : "text-gray-400 bg-white/5"}`}>
+                                                    {pick.recommendation || "BUY"} ({pick.confidence}%)
                                                 </span>
-                                                <div className="text-[9px] text-emerald-500 font-bold mt-1">+{pick.expected_return}% return</div>
+                                                <div className={`text-[9px] font-bold mt-1 ${pick.expected_return >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                                                    {pick.expected_return >= 0 ? "+" : ""}{pick.expected_return}% return
+                                                </div>
                                             </div>
                                         </div>
                                     ))
                                 ) : (
                                     <div className="p-4 bg-white/5 border border-white/5 rounded-xl text-center text-xs text-gray-500 italic">
-                                        Scanning market watchlists... No high-confidence BUY signals currently.
+                                        Loading market signals...
                                     </div>
                                 )}
                             </div>

@@ -644,10 +644,11 @@ async def get_prediction_timeline(symbol: str, user=Depends(get_current_user)):
 @stocks_router.get("/top-picks")
 async def get_top_picks(user=Depends(get_current_user)):
     """
-    Find top 3 BUY signals with highest confidence.
+    Return top stock recommendations from the watchlist with their signals.
+    Shows all stocks with BUY or SELL recommendations sorted by confidence.
     """
-    # Fetch for standard watchlist
-    watchlist = ["TCS.NS", "INFY.NS", "RELIANCE.NS", "AAPL", "MSFT", "GOOGL"]
+    # Indian stock watchlist (these always have .NS suffix)
+    watchlist = ["TCS.NS", "INFY.NS", "RELIANCE.NS", "HDFCBANK.NS", "SUZLON.NS"]
     
     all_picks = []
     for sym in watchlist:
@@ -655,18 +656,40 @@ async def get_top_picks(user=Depends(get_current_user)):
             preds = await get_stock_predictions(sym, user)
             if preds:
                 data = preds[0]
-                if data["recommendation"] == "BUY":
+                rec = data["recommendation"]
+                # Include BUY and SELL recommendations
+                if rec in ("BUY", "SELL"):
                     all_picks.append({
                         "symbol": data["symbol"],
                         "price": data["current_price"],
                         "change": data["daily_change"],
                         "confidence": data["predictions"]["2h"]["confidence"],
-                        "expected_return": data["predictions"]["2h"]["expected_return"]
+                        "expected_return": data["predictions"]["2h"]["expected_return"],
+                        "recommendation": rec
                     })
-        except Exception:
+        except Exception as e:
+            print(f"Top picks error for {sym}: {e}")
             pass
+    
+    # If no BUY/SELL signals, return all with highest confidence regardless
+    if not all_picks:
+        for sym in watchlist[:3]:
+            try:
+                preds = await get_stock_predictions(sym, user)
+                if preds:
+                    data = preds[0]
+                    all_picks.append({
+                        "symbol": data["symbol"],
+                        "price": data["current_price"],
+                        "change": data["daily_change"],
+                        "confidence": data["predictions"]["2h"]["confidence"],
+                        "expected_return": data["predictions"]["2h"]["expected_return"],
+                        "recommendation": data["recommendation"]
+                    })
+            except Exception:
+                pass
             
     # Sort by confidence descending
     all_picks.sort(key=lambda x: x["confidence"], reverse=True)
-    return all_picks[:3]
+    return all_picks[:5]
 
