@@ -4,18 +4,21 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
-    Sparkles, Newspaper, Award, Layers, RefreshCw,
-    ArrowUpRight, ArrowDownRight, Activity, AlertCircle, Cpu
+    BarChart3, RefreshCw, Upload, TrendingUp, TrendingDown,
+    AlertCircle, Activity, ArrowUpRight, ArrowDownRight, Minus
 } from "lucide-react";
+import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import api from "@/lib/api";
+
+const COLORS = ["#22d3ee", "#818cf8", "#f43f5e", "#fbbf24", "#10b981", "#6366f1", "#ec4899", "#14b8a6"];
 
 export default function AnalyticsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const hasFetched = useRef(false);
 
-    const [currentData, setCurrentData] = useState<any>(null);
-    const [topPicks, setTopPicks] = useState<any[]>([]);
+    const [holdings, setHoldings] = useState<any[]>([]);
+    const [recommendations, setRecommendations] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -26,30 +29,80 @@ export default function AnalyticsPage() {
     useEffect(() => {
         if (status === "authenticated" && (session as any)?.accessToken && !hasFetched.current) {
             hasFetched.current = true;
-            fetchData();
+            fetchPortfolioAnalytics();
         }
     }, [status, session]);
 
     const accessToken = (session as any)?.accessToken || "";
 
-    const fetchData = async () => {
+    const fetchPortfolioAnalytics = async () => {
         setLoading(true);
         setError(null);
         try {
             const headers = { Authorization: `Bearer ${accessToken}` };
 
-            // Fetch predictions for the user's portfolio stocks or default
-            const response = await api.get("/api/stocks/predictions", { headers });
-            if (response.data && response.data.length > 0) {
-                setCurrentData(response.data[0]);
+            // 1. Fetch user's portfolio holdings
+            const pfResponse = await api.get("/api/portfolio/current", { headers });
+            const fetchedHoldings = pfResponse.data.holdings || [];
+            setHoldings(fetchedHoldings);
+
+            if (fetchedHoldings.length === 0) {
+                setLoading(false);
+                return;
             }
 
-            // Fetch top picks
-            const picksRes = await api.get("/api/stocks/top-picks", { headers });
-            setTopPicks(picksRes.data || []);
+            // 2. Get predictions/recommendations for each stock holding
+            const stockHoldings = fetchedHoldings.filter(
+                (h: any) => h.symbol && h.symbol !== "Unresolved" && h.asset_type === "STOCK"
+            );
+
+            const recs: any[] = [];
+            for (const h of stockHoldings) {
+                try {
+                    const predRes = await api.get(`/api/stocks/predictions?symbol=${h.symbol}`, { headers });
+                    if (predRes.data && predRes.data.length > 0) {
+                        const pred = predRes.data[0];
+                        recs.push({
+                            symbol: h.symbol,
+                            asset_name: h.asset_name,
+                            quantity: h.quantity,
+                            invested_value: h.invested_value,
+                            current_value: h.current_value,
+                            current_price: pred.current_price,
+                            daily_change: pred.daily_change,
+                            recommendation: pred.recommendation,
+                            direction_2h: pred.predictions["2h"].direction,
+                            confidence_2h: pred.predictions["2h"].confidence,
+                            direction_1d: pred.predictions["1d"].direction,
+                            confidence_1d: pred.predictions["1d"].confidence,
+                            expected_return: pred.predictions["2h"].expected_return,
+                            explanation: pred.predictions["2h"].explanation,
+                        });
+                    }
+                } catch (e) {
+                    // Skip stocks that fail
+                    recs.push({
+                        symbol: h.symbol,
+                        asset_name: h.asset_name,
+                        quantity: h.quantity,
+                        invested_value: h.invested_value,
+                        current_value: h.current_value,
+                        current_price: 0,
+                        daily_change: 0,
+                        recommendation: "HOLD",
+                        direction_2h: "Sideways",
+                        confidence_2h: 50,
+                        direction_1d: "Sideways",
+                        confidence_1d: 50,
+                        expected_return: 0,
+                        explanation: "Unable to fetch prediction data.",
+                    });
+                }
+            }
+            setRecommendations(recs);
         } catch (err: any) {
             console.error(err);
-            setError(err.response?.data?.detail || "Failed to load analytics data.");
+            setError(err.response?.data?.detail || "Failed to load portfolio.");
         } finally {
             setLoading(false);
         }
@@ -58,7 +111,7 @@ export default function AnalyticsPage() {
     if (status === "loading" || loading) {
         return (
             <div className="min-h-screen flex items-center justify-center text-purple-400 font-mono animate-pulse">
-                Loading Analytics...
+                Analyzing your holdings...
             </div>
         );
     }
@@ -74,21 +127,54 @@ export default function AnalyticsPage() {
         );
     }
 
+    if (holdings.length === 0) {
+        return (
+            <div className="min-h-screen text-white p-8 flex items-center justify-center">
+                <div className="text-center max-w-md">
+                    <Upload className="w-16 h-16 mx-auto mb-6 text-cyan-400" />
+                    <h2 className="text-3xl font-black mb-4">No Holdings Found</h2>
+                    <p className="text-gray-400 mb-8">Upload your brokerage statement to see analytics and recommendations for your holdings.</p>
+                    <button onClick={() => router.push("/upload")} className="px-8 py-4 bg-white text-black rounded-xl hover:bg-cyan-500 transition text-sm font-black shadow-lg">
+                        Upload Statement
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Prepare chart data
+    const allocationData = holdings.map((h: any, i: number) => ({
+        name: h.symbol || h.asset_name,
+        value: h.current_value,
+    }));
+
+    const performanceData = recommendations.map((r: any) => ({
+        name: r.symbol.replace(".NS", ""),
+        invested: r.invested_value,
+        current: r.current_value,
+        pnl: r.current_value - r.invested_value,
+    }));
+
+    const totalInvested = holdings.reduce((sum: number, h: any) => sum + h.invested_value, 0);
+    const totalCurrent = holdings.reduce((sum: number, h: any) => sum + h.current_value, 0);
+    const totalPnL = totalCurrent - totalInvested;
+    const pnlPercent = totalInvested > 0 ? ((totalPnL / totalInvested) * 100) : 0;
+
     return (
         <div className="text-white p-4 md:p-8 font-sans overflow-x-hidden">
             {/* Header */}
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div className="flex items-center gap-3">
                     <div className="p-2.5 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-2xl border border-cyan-500/30">
-                        <Cpu size={24} className="text-cyan-400" />
+                        <BarChart3 size={24} className="text-cyan-400" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-black tracking-tight">Analytics</h1>
-                        <p className="text-xs text-gray-500">AI-Powered Market Intelligence</p>
+                        <h1 className="text-3xl font-black tracking-tight">Portfolio Analytics</h1>
+                        <p className="text-xs text-gray-500">AI recommendations for your uploaded holdings</p>
                     </div>
                 </div>
                 <button
-                    onClick={() => { hasFetched.current = false; fetchData(); }}
+                    onClick={() => { hasFetched.current = false; fetchPortfolioAnalytics(); }}
                     className="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition text-gray-400 hover:text-white"
                     title="Refresh"
                 >
@@ -96,154 +182,150 @@ export default function AnalyticsPage() {
                 </button>
             </header>
 
-            {currentData ? (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Left Column */}
-                    <div className="lg:col-span-2 space-y-8">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                <div className="glass p-6 rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/10 to-transparent">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Total Invested</div>
+                    <div className="text-2xl font-black">₹{totalInvested.toLocaleString()}</div>
+                </div>
+                <div className="glass p-6 rounded-3xl border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-transparent">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Current Value</div>
+                    <div className="text-2xl font-black">₹{totalCurrent.toLocaleString()}</div>
+                </div>
+                <div className={`glass p-6 rounded-3xl border ${totalPnL >= 0 ? "border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-transparent" : "border-rose-500/20 bg-gradient-to-br from-rose-500/10 to-transparent"}`}>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Total P&L</div>
+                    <div className={`text-2xl font-black flex items-center gap-2 ${totalPnL >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {totalPnL >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                        {totalPnL >= 0 ? "+" : ""}₹{totalPnL.toLocaleString()} ({pnlPercent.toFixed(2)}%)
+                    </div>
+                </div>
+            </div>
 
-                        {/* Explainable AI Justification */}
-                        <div className="glass p-6 rounded-3xl border border-purple-500/10 bg-gradient-to-br from-purple-500/5 to-transparent relative overflow-hidden">
-                            <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 p-8 bg-purple-500/10 rounded-full blur-2xl" />
-                            <div className="flex items-center gap-2 mb-3">
-                                <Sparkles className="text-purple-400 animate-pulse" size={20} />
-                                <h4 className="font-black text-sm uppercase tracking-wider text-purple-400">Explainable AI Justification</h4>
-                            </div>
-                            <p className="text-gray-300 text-sm leading-relaxed tracking-wide font-medium">
-                                &ldquo;{currentData.predictions["2h"].explanation}&rdquo;
-                            </p>
+            {/* Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                {/* Allocation Pie Chart */}
+                <div className="glass rounded-3xl p-6 border border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                        <Activity className="w-5 h-5 text-cyan-400" /> Holdings Allocation
+                    </h3>
+                    <div className="h-[280px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={allocationData}
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={100}
+                                    dataKey="value"
+                                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                                    labelLine={false}
+                                >
+                                    {allocationData.map((_: any, index: number) => (
+                                        <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip
+                                    contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
+                                    formatter={(value: any) => `₹${Number(value).toLocaleString()}`}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
 
-                            <div className="mt-6 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 pt-4 border-t border-white/5">
-                                {currentData.recommendation === "BUY" ? (
-                                    <div className="px-6 py-2 bg-emerald-500 text-black font-black text-center rounded-xl border border-emerald-400/40 shadow-lg shadow-emerald-500/20 tracking-wider">
-                                        BUY RECOMMENDATION
-                                    </div>
-                                ) : currentData.recommendation === "SELL" ? (
-                                    <div className="px-6 py-2 bg-rose-500 text-black font-black text-center rounded-xl border border-rose-400/40 shadow-lg shadow-rose-500/20 tracking-wider">
-                                        SELL RECOMMENDATION
-                                    </div>
-                                ) : (
-                                    <div className="px-6 py-2 bg-white/10 text-white font-bold text-center rounded-xl border border-white/10 tracking-wider">
-                                        HOLD RECOMMENDATION
-                                    </div>
-                                )}
-                                <div className="text-[10px] text-gray-500 font-mono text-right flex items-center justify-end gap-1.5">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
-                                    Active Model: river.forest.ARFClassifier
-                                </div>
-                            </div>
-                        </div>
+                {/* Performance Bar Chart */}
+                <div className="glass rounded-3xl p-6 border border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
+                    <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                        <BarChart3 className="w-5 h-5 text-purple-400" /> Invested vs Current
+                    </h3>
+                    <div className="h-[280px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={performanceData} margin={{ top: 10, right: 10, left: 10, bottom: 40 }}>
+                                <XAxis dataKey="name" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 10 }} angle={-20} textAnchor="end" />
+                                <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 10 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+                                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }} />
+                                <Legend wrapperStyle={{ fontSize: '11px' }} />
+                                <Bar dataKey="invested" name="Invested" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                                <Bar dataKey="current" name="Current" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
 
-                        {/* News Intelligence Feed */}
-                        <div className="glass p-6 rounded-3xl border border-white/5 bg-white/[0.005]">
-                            <div className="flex justify-between items-center mb-6">
-                                <div className="flex items-center gap-2">
-                                    <Newspaper size={18} className="text-gray-400" />
-                                    <h4 className="font-bold text-sm uppercase tracking-wider">News Intelligence Feed</h4>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-gray-500 font-mono">FinBERT:</span>
-                                    <span className={`text-xs font-black px-2.5 py-0.5 rounded border ${currentData.sentiment.classification === "POSITIVE"
-                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
-                                        : (currentData.sentiment.classification === "NEGATIVE"
-                                            ? "bg-rose-500/10 text-rose-400 border-rose-500/20"
-                                            : "bg-white/5 text-gray-400 border-white/10")
-                                        }`}>
-                                        {currentData.sentiment.classification} ({currentData.sentiment.score > 0 ? "+" : ""}{currentData.sentiment.score})
-                                    </span>
-                                </div>
-                            </div>
+            {/* AI Recommendations Table */}
+            <div className="glass rounded-3xl p-6 border border-white/5 bg-gradient-to-br from-white/[0.02] to-transparent">
+                <h3 className="font-bold text-lg mb-6 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-emerald-400" /> AI Recommendations — Keep or Sell?
+                </h3>
 
-                            <div className="space-y-4">
-                                {currentData.sentiment.headlines && currentData.sentiment.headlines.length > 0 ? (
-                                    currentData.sentiment.headlines.map((item: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-start gap-4 p-3.5 bg-white/[0.01] hover:bg-white/[0.02] border border-white/5 rounded-xl transition-all">
-                                            <p className="text-xs font-medium text-gray-300 leading-normal">{item.title}</p>
-                                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 ${item.sentiment === "POSITIVE"
-                                                ? "bg-emerald-500/10 text-emerald-400"
-                                                : (item.sentiment === "NEGATIVE"
-                                                    ? "bg-rose-500/10 text-rose-400"
-                                                    : "bg-white/5 text-gray-500")
-                                                }`}>
-                                                {item.sentiment}
+                {recommendations.length > 0 ? (
+                    <div className="space-y-4">
+                        {recommendations.map((rec, idx) => {
+                            const pnl = rec.current_value - rec.invested_value;
+                            const pnlPct = rec.invested_value > 0 ? ((pnl / rec.invested_value) * 100) : 0;
+
+                            return (
+                                <div key={idx} className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.04] transition">
+                                    {/* Stock Info */}
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-1">
+                                            <span className="font-black text-sm">{rec.symbol}</span>
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${rec.daily_change >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"}`}>
+                                                {rec.daily_change >= 0 ? "+" : ""}{rec.daily_change.toFixed(2)}%
                                             </span>
                                         </div>
-                                    ))
-                                ) : (
-                                    <p className="text-gray-500 text-xs italic text-center py-4">No recent articles parsed for this stock.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Right Column */}
-                    <div className="space-y-8">
-
-                        {/* Top AI Picks Today */}
-                        <div className="glass p-6 rounded-3xl border border-yellow-500/10 bg-gradient-to-br from-yellow-500/5 to-transparent">
-                            <div className="flex items-center gap-2 mb-4">
-                                <Award className="text-yellow-400" size={18} />
-                                <h4 className="font-bold text-sm uppercase tracking-wider text-yellow-400">Top AI Picks Today</h4>
-                            </div>
-                            <div className="space-y-3">
-                                {topPicks.length > 0 ? (
-                                    topPicks.map((pick: any, idx: number) => (
-                                        <div key={idx} className="flex justify-between items-center p-3 bg-white/5 border border-white/5 rounded-xl hover:bg-white/10 transition">
-                                            <div>
-                                                <div className="font-black text-xs">{pick.symbol}</div>
-                                                <div className="text-[10px] text-gray-500">₹{pick.price.toLocaleString()}</div>
-                                            </div>
-                                            <div className="text-right">
-                                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${pick.recommendation === "BUY" ? "text-emerald-400 bg-emerald-500/10" : pick.recommendation === "SELL" ? "text-rose-400 bg-rose-500/10" : "text-gray-400 bg-white/5"}`}>
-                                                    {pick.recommendation || "BUY"} ({pick.confidence}%)
-                                                </span>
-                                                <div className={`text-[9px] font-bold mt-1 ${pick.expected_return >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
-                                                    {pick.expected_return >= 0 ? "+" : ""}{pick.expected_return}% return
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="p-4 bg-white/5 border border-white/5 rounded-xl text-center text-xs text-gray-500 italic">
-                                        Loading market signals...
+                                        <div className="text-[10px] text-gray-500">{rec.asset_name} · Qty: {rec.quantity}</div>
                                     </div>
-                                )}
-                            </div>
-                        </div>
 
-                        {/* Model Performance (Live) */}
-                        <div className="glass p-6 rounded-3xl border border-white/5 bg-white/[0.01] space-y-4">
-                            <div className="flex items-center gap-2">
-                                <Layers className="text-gray-400" size={18} />
-                                <h4 className="font-bold text-sm uppercase tracking-wider">Model Performance (Live)</h4>
-                            </div>
+                                    {/* P&L */}
+                                    <div className="text-center min-w-[100px]">
+                                        <div className={`text-sm font-black ${pnl >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                                            {pnl >= 0 ? "+" : ""}₹{pnl.toLocaleString()}
+                                        </div>
+                                        <div className="text-[10px] text-gray-500">{pnlPct.toFixed(2)}% P&L</div>
+                                    </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-3 bg-white/5 rounded-xl text-center border border-white/5">
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Accuracy</div>
-                                    <div className="text-2xl font-black text-purple-400">{(currentData.metrics.accuracy * 100).toFixed(0)}%</div>
+                                    {/* AI Signal */}
+                                    <div className="text-center min-w-[80px]">
+                                        <div className="flex items-center gap-1 justify-center">
+                                            {rec.direction_2h === "Bullish" ? <ArrowUpRight size={14} className="text-emerald-400" /> :
+                                             rec.direction_2h === "Bearish" ? <ArrowDownRight size={14} className="text-rose-400" /> :
+                                             <Minus size={14} className="text-gray-400" />}
+                                            <span className="text-xs font-bold">{rec.confidence_2h}%</span>
+                                        </div>
+                                        <div className="text-[9px] text-gray-500">Confidence</div>
+                                    </div>
+
+                                    {/* Recommendation Badge */}
+                                    <div className="min-w-[120px]">
+                                        {rec.recommendation === "BUY" ? (
+                                            <div className="px-4 py-2 bg-emerald-500/20 text-emerald-400 font-black text-center rounded-xl border border-emerald-500/30 text-xs">
+                                                ✓ KEEP / BUY MORE
+                                            </div>
+                                        ) : rec.recommendation === "SELL" ? (
+                                            <div className="px-4 py-2 bg-rose-500/20 text-rose-400 font-black text-center rounded-xl border border-rose-500/30 text-xs">
+                                                ✗ SELL
+                                            </div>
+                                        ) : (
+                                            <div className="px-4 py-2 bg-white/5 text-gray-400 font-bold text-center rounded-xl border border-white/10 text-xs">
+                                                ● HOLD
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="p-3 bg-white/5 rounded-xl text-center border border-white/5">
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Total Predictions</div>
-                                    <div className="text-2xl font-black text-purple-400">{currentData.metrics.total_predictions}</div>
-                                </div>
-                                <div className="p-3 bg-white/5 rounded-xl text-center border border-white/5">
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Precision</div>
-                                    <div className="text-lg font-black">{(currentData.metrics.precision * 100).toFixed(0)}%</div>
-                                </div>
-                                <div className="p-3 bg-white/5 rounded-xl text-center border border-white/5">
-                                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Recall</div>
-                                    <div className="text-lg font-black">{(currentData.metrics.recall * 100).toFixed(0)}%</div>
-                                </div>
-                            </div>
-                        </div>
+                            );
+                        })}
                     </div>
+                ) : (
+                    <p className="text-gray-500 text-sm text-center py-8">No stock holdings found for analysis. Upload a statement with stock holdings.</p>
+                )}
+
+                {/* Disclaimer */}
+                <div className="mt-6 text-center text-[10px] text-gray-500 opacity-60">
+                    DISCLAIMER: AI recommendations are based on technical indicators and sentiment analysis. Not investment advice. Past performance does not guarantee future results.
                 </div>
-            ) : (
-                <div className="text-center py-24 text-gray-500">
-                    <Cpu className="w-16 h-16 mx-auto mb-4 text-purple-500/30" />
-                    <p className="text-lg font-semibold">Upload a portfolio or wait for prediction data to load.</p>
-                </div>
-            )}
+            </div>
         </div>
     );
 }
