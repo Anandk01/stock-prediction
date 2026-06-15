@@ -62,15 +62,126 @@ class PDFParserService:
         return filepath
 
     def _extract_via_text(self, pdf) -> List[Dict[str, Any]]:
+        """
+        Primary extraction: tries table-based parsing first.
+        Falls back to text-line parsing if tables yield no data rows
+        (common with NSDL CAS PDFs where holdings are in free text).
+        """
         extracted_data = []
-        
+
+        # --- Pass 1: table-based ---
         for page in pdf.pages:
             tables = page.extract_tables()
             for table in tables:
                 parsed_rows = self._parse_table(table)
                 extracted_data.extend(parsed_rows)
-                
+
+        if extracted_data:
+            return extracted_data
+
+        # --- Pass 2: text-line fallback (NSDL / free-text CAS format) ---
+        print("INFO: Table extraction yielded no holdings. Falling back to text-line parser.")
+        full_text = "\n".join([page.extract_text() or "" for page in pdf.pages])
+        extracted_data = self._extract_via_text_lines(full_text)
         return extracted_data
+
+    def _extract_via_text_lines(self, text: str) -> List[Dict[str, Any]]:
+        """
+        Parse holdings from free-form text as produced by NSDL CAS PDFs.
+
+        NSDL text layout (per holding block):
+            INE002A01018           ← ISIN line
+            RELIANCE INDUSTRIES LTD  45  1,520.00  68,400.00
+            RELIANCE               ← ticker (optional, ignored)
+
+        OR for Mutual Funds:
+            INF209K01234  Parag Parikh Flexi Cap Fund  500.25  65.40  32,716.35
+
+        Strategy:
+          1. Find every ISIN (12-char pattern) in the text.
+          2. Parse the same or next non-empty line for name + numbers.
+        """
+        isin_pattern = re.compile(r'\b([A-Z]{2}[A-Z0-9]{10})\b')
+        # Matches 1–4 numbers (possibly with commas/decimals) at end of a line
+        numbers_pattern = re.compile(r'([\d,]+\.?\d*)')
+
+        lines = [l.strip() for l in text.splitlines()]
+        results = []
+        seen_isins = set()
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            m = isin_pattern.search(line)
+
+            if m:
+                isin = m.group(1)
+                if isin in seen_isins:
+                    i += 1
+                    continue
+                seen_isins.add(isin)
+
+                # The data could be on the SAME line (MF style) or NEXT line (equity style)
+                # Try same line first: after the ISIN there should be name + numbers
+                rest_of_line = line[m.end():].strip()
+                nums_on_same = numbers_pattern.findall(rest_of_line)
+
+                if len(nums_on_same) >= 2:
+                    # Same-line format: INF... Scheme Name  500.25  65.40  32716.35
+                    name_part = numbers_pattern.split(rest_of_line)[0].strip()
+                    asset_name = name_part if name_part else isin
+                    numbers = [self._parse_float(n) for n in nums_on_same]
+                    quantity = numbers[0]
+                    # Last number is usually Value; second-to-last is NAV/Price
+                    value = numbers[-1]
+                else:
+                    # Next-line format: ISIN on one line, data on next
+                    asset_name = isin  # fallback
+                    quantity = 0.0
+                    value = 0.0
+
+                    # Look ahead for the data line (skip blank lines, max 2 ahead)
+                    for offset in range(1, 3):
+                        if i + offset >= len(lines):
+                            break
+                        next_line = lines[i + offset].strip()
+                        if not next_line:
+                            continue
+                        nums = numbers_pattern.findall(next_line)
+                        if len(nums) >= 2:
+                            # Extract name: everything before first number
+                            name_part = numbers_pattern.split(next_line)[0].strip()
+                            if name_part:
+                                asset_name = name_part
+                            numbers = [self._parse_float(n) for n in nums]
+                            quantity = numbers[0]
+                            value = numbers[-1]
+                            i += offset  # skip the consumed lines
+                            break
+
+                # Skip junk (header repeats, zero rows)
+                junk_keywords = ['isin', 'symbol', 'scheme', 'company name',
+                                  'security name', 'units', 'nav', 'shares',
+                                  'price', 'value', 'total', 'grand total']
+                if any(k in asset_name.lower() for k in junk_keywords):
+                    i += 1
+                    continue
+
+                if quantity == 0.0 and value == 0.0:
+                    i += 1
+                    continue
+
+                print(f"DEBUG [text-line]: ISIN={isin}, Name={asset_name}, Qty={quantity}, Value={value}")
+                results.append({
+                    "raw_name": asset_name,
+                    "isin": isin,
+                    "quantity": quantity,
+                    "invested_value": value
+                })
+
+            i += 1
+
+        return results
 
     def _extract_via_ocr(self, pdf) -> List[Dict[str, Any]]:
         """
@@ -171,10 +282,12 @@ class PDFParserService:
                     
                     # skip header repetitions or junk
                     blacklist = [
-                        'script', 'total', 'page', 'description', 'security', 
-                        'demat', 'account', 'folio', 'pan:', 'statement', 
-                        'summary', 'report', 'as on', 'account type', 'cdsl', 'nsdl'
+                        'script', 'total', 'page',
+                        'demat', 'folio', 'pan:', 'statement',
+                        'summary', 'report', 'as on', 'account type'
                     ]
+                    # Note: 'nsdl', 'cdsl', 'security', 'description', 'account' removed —
+                    # these strings legitimately appear in company/fund names.
                     if any(b in asset_name.lower() for b in blacklist): continue 
                     
                     units = self._parse_float(row[units_idx]) if units_idx is not None else 0.0
