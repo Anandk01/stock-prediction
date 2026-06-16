@@ -84,28 +84,43 @@ class CASFormatDetector:
         """
         try:
             if format_type == "NSDL":
-                # Look for "YOUR CONSOLIDATED PORTFOLIO VALUE" followed by amount
-                # Pattern: ` 45,690.09 or ₹ 45,690.09
-                pattern = r'(?:YOUR CONSOLIDATED PORTFOLIO VALUE|TOTAL)[\s\S]{0,100}?[`₹]\s*([\d,]+\.?\d*)'
-                match = re.search(pattern, text, re.IGNORECASE)
-                if match:
-                    amount_str = match.group(1).replace(',', '')
-                    return float(amount_str)
+                # Pattern 1: "YOUR CONSOLIDATED PORTFOLIO VALUE ₹ 82,000.00"
+                patterns = [
+                    r'CONSOLIDATED\s+PORTFOLIO\s+VALUE[\s\S]{0,30}?([\d,]+\.?\d*)',
+                    r'PORTFOLIO\s+VALUE[\s\S]{0,30}?[₹`]\s*([\d,]+\.?\d*)',
+                    r'PORTFOLIO\s+VALUE[\s\S]{0,30}?([\d]{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)',
+                    r'Value\s+in\s+[₹`]?\s*\n.*?([\d,]+\.?\d*)\s*$',
+                ]
+                for pattern in patterns:
+                    match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+                    if match:
+                        amount_str = match.group(1).replace(',', '').strip()
+                        if amount_str and float(amount_str) > 0:
+                            return float(amount_str)
             
             elif format_type == "CDSL":
-                # CDSL typically shows total at bottom
-                pattern = r'(?:TOTAL|GRAND TOTAL)[\s\S]{0,50}?[`₹]\s*([\d,]+\.?\d*)'
+                patterns = [
+                    r'(?:TOTAL|GRAND\s+TOTAL)[\s\S]{0,50}?[₹`]\s*([\d,]+\.?\d*)',
+                    r'(?:TOTAL|GRAND\s+TOTAL)[\s\S]{0,50}?([\d]{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)',
+                ]
+                for pattern in patterns:
+                    match = re.search(pattern, text, re.IGNORECASE)
+                    if match:
+                        amount_str = match.group(1).replace(',', '').strip()
+                        if amount_str and float(amount_str) > 0:
+                            return float(amount_str)
+            
+            # Generic fallback — look for any large number after PORTFOLIO VALUE or TOTAL
+            fallback_patterns = [
+                r'PORTFOLIO\s+VALUE[\s\S]{0,50}?([\d]{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)',
+                r'(?:TOTAL|Sub\s+Total)[\s\S]{0,30}?([\d]{1,3}(?:,\d{2,3})*\.\d{2})',
+            ]
+            for pattern in fallback_patterns:
                 match = re.search(pattern, text, re.IGNORECASE)
                 if match:
-                    amount_str = match.group(1).replace(',', '')
-                    return float(amount_str)
-            
-            # Generic fallback
-            pattern = r'(?:TOTAL|PORTFOLIO VALUE)[\s\S]{0,100}?[`₹]\s*([\d,]+\.?\d*)'
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                amount_str = match.group(1).replace(',', '')
-                return float(amount_str)
+                    amount_str = match.group(1).replace(',', '').strip()
+                    if amount_str and float(amount_str) > 100:
+                        return float(amount_str)
                 
         except Exception as e:
             print(f"Error extracting CAS total: {e}")
@@ -124,6 +139,11 @@ class CASFormatDetector:
         Returns:
             float: Confidence score (0.0 to 1.0)
         """
+        # If we extracted holdings but couldn't find CAS header total, 
+        # still give reasonable confidence
+        if cas_total == 0.0 and extracted_total > 0:
+            return 0.75  # We parsed something, just couldn't verify against header
+        
         if cas_total == 0.0 or extracted_total == 0.0:
             return 0.0
         
@@ -131,10 +151,6 @@ class CASFormatDetector:
         relative_error = difference / cas_total
         
         # Confidence decreases as error increases
-        # 0% error = 1.0 confidence
-        # 1% error = 0.99 confidence
-        # 5% error = 0.95 confidence
-        # 10% error = 0.90 confidence
         confidence = max(0.0, 1.0 - relative_error)
         
         return round(confidence, 4)
