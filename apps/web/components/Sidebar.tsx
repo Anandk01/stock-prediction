@@ -16,6 +16,13 @@ import { useState } from "react";
 
 const NAV_ITEMS = [
     {
+        label: "AI Predictions",
+        href: "/dashboard",
+        icon: Cpu,
+        primary: true,
+        description: "Live ML predictions & signals",
+    },
+    {
         label: "Upload",
         href: "/upload",
         icon: Upload,
@@ -35,13 +42,6 @@ const NAV_ITEMS = [
         icon: BarChart3,
         primary: false,
         description: "Portfolio metrics & risk",
-    },
-    {
-        label: "AI Predictions",
-        href: "/dashboard",
-        icon: Cpu,
-        primary: true,
-        description: "Live ML predictions & signals",
     },
 ];
 
