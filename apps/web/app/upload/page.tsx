@@ -83,9 +83,9 @@ export default function UploadPage() {
             });
 
             setState("complete");
-            setMessage("Portfolio processed successfully. Redirecting...");
+            setMessage("Portfolio processed successfully. Redirecting to your holdings...");
 
-            setTimeout(() => router.push("/dashboard"), 1500);
+            setTimeout(() => router.push("/holdings"), 1500);
 
         } catch (error: any) {
             console.error(error);

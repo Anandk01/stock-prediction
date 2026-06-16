@@ -48,9 +48,17 @@ export default function HoldingsPage() {
     return (
         <div className="text-white p-8">
 
-            <header className="mb-12">
-                <h1 className="text-5xl font-black mb-4">Detailed Analysis</h1>
-                <p className="text-gray-400">Canonical mapping of your raw statement data to market symbols.</p>
+            <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
+                <div>
+                    <h1 className="text-5xl font-black mb-4">Your Holdings</h1>
+                    <p className="text-gray-400">Canonical mapping of your raw statement data to market symbols.</p>
+                </div>
+                <button
+                    onClick={() => router.push("/dashboard/analytics")}
+                    className="px-8 py-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-black rounded-2xl hover:shadow-xl hover:shadow-purple-500/20 transition-all active:scale-95 flex items-center gap-2"
+                >
+                    Analyse Holdings →
+                </button>
             </header>
 
             <div className="glass rounded-[2rem] overflow-hidden border border-white/5 bg-white/[0.01]">
