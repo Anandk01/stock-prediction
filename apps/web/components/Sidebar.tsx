@@ -16,18 +16,11 @@ import { useState } from "react";
 
 const NAV_ITEMS = [
     {
-        label: "AI Predictions",
-        href: "/dashboard",
-        icon: Cpu,
-        primary: true,
-        description: "Live ML predictions & signals",
-    },
-    {
-        label: "Analytics",
-        href: "/dashboard/analytics",
-        icon: BarChart3,
+        label: "Upload",
+        href: "/upload",
+        icon: Upload,
         primary: false,
-        description: "Portfolio metrics & risk",
+        description: "Import brokerage PDF",
     },
     {
         label: "Holdings",
@@ -37,11 +30,18 @@ const NAV_ITEMS = [
         description: "Your asset breakdown",
     },
     {
-        label: "Upload",
-        href: "/upload",
-        icon: Upload,
+        label: "Analytics",
+        href: "/dashboard/analytics",
+        icon: BarChart3,
         primary: false,
-        description: "Import brokerage PDF",
+        description: "Portfolio metrics & risk",
+    },
+    {
+        label: "AI Predictions",
+        href: "/dashboard",
+        icon: Cpu,
+        primary: true,
+        description: "Live ML predictions & signals",
     },
 ];
 
