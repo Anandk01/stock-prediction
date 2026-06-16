@@ -51,13 +51,14 @@ export default function AnalyticsPage() {
                 return;
             }
 
-            // 2. Get predictions/recommendations for each stock holding
+            // 2. Get predictions/recommendations for top stocks only (limit to 5 for speed)
             const stockHoldings = fetchedHoldings.filter(
                 (h: any) => h.symbol && h.symbol !== "Unresolved" && h.asset_type === "STOCK"
             );
 
+            const topStocks = stockHoldings.slice(0, 5);
             const recs: any[] = [];
-            for (const h of stockHoldings) {
+            for (const h of topStocks) {
                 try {
                     const predRes = await api.get(`/api/stocks/predictions?symbol=${h.symbol}`, { headers });
                     if (predRes.data && predRes.data.length > 0) {
@@ -80,7 +81,6 @@ export default function AnalyticsPage() {
                         });
                     }
                 } catch (e) {
-                    // Skip stocks that fail
                     recs.push({
                         symbol: h.symbol,
                         asset_name: h.asset_name,
@@ -98,6 +98,25 @@ export default function AnalyticsPage() {
                         explanation: "Unable to fetch prediction data.",
                     });
                 }
+            }
+            // Add remaining stocks without predictions
+            for (const h of stockHoldings.slice(5)) {
+                recs.push({
+                    symbol: h.symbol,
+                    asset_name: h.asset_name,
+                    quantity: h.quantity,
+                    invested_value: h.invested_value,
+                    current_value: h.current_value,
+                    current_price: 0,
+                    daily_change: 0,
+                    recommendation: "HOLD",
+                    direction_2h: "Sideways",
+                    confidence_2h: 50,
+                    direction_1d: "Sideways",
+                    confidence_1d: 50,
+                    expected_return: 0,
+                    explanation: "Prediction pending — click to analyse individually.",
+                });
             }
             setRecommendations(recs);
         } catch (err: any) {
@@ -148,11 +167,12 @@ export default function AnalyticsPage() {
         value: h.current_value,
     }));
 
-    const performanceData = recommendations.map((r: any) => ({
-        name: r.symbol.replace(".NS", ""),
-        invested: r.invested_value,
-        current: r.current_value,
-        pnl: r.current_value - r.invested_value,
+    // Bar chart: use top 10 holdings by value
+    const sortedHoldings = [...holdings].sort((a: any, b: any) => b.current_value - a.current_value);
+    const performanceData = sortedHoldings.slice(0, 10).map((h: any) => ({
+        name: (h.symbol || h.asset_name || "").replace(".NS", "").substring(0, 12),
+        invested: h.invested_value,
+        current: h.current_value,
     }));
 
     const totalInvested = holdings.reduce((sum: number, h: any) => sum + h.invested_value, 0);

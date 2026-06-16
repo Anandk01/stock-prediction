@@ -131,26 +131,22 @@ class CASFormatDetector:
     def calculate_confidence(cas_total: float, extracted_total: float) -> float:
         """
         Calculate parsing confidence based on CAS total vs extracted total.
-        
-        Args:
-            cas_total: Total from CAS header
-            extracted_total: Sum of extracted holdings
-            
-        Returns:
-            float: Confidence score (0.0 to 1.0)
         """
-        # If we extracted holdings but couldn't find CAS header total, 
-        # still give reasonable confidence
+        # If we extracted holdings but couldn't find CAS header total
         if cas_total == 0.0 and extracted_total > 0:
-            return 0.75  # We parsed something, just couldn't verify against header
+            return 0.75
         
         if cas_total == 0.0 or extracted_total == 0.0:
             return 0.0
         
-        difference = abs(cas_total - extracted_total)
-        relative_error = difference / cas_total
+        # Calculate relative difference (handle both over and under extraction)
+        if extracted_total > cas_total:
+            # Extracted more than header says — could be multiple accounts
+            relative_error = (extracted_total - cas_total) / extracted_total
+        else:
+            relative_error = (cas_total - extracted_total) / cas_total
         
-        # Confidence decreases as error increases
-        confidence = max(0.0, 1.0 - relative_error)
+        # Confidence decreases as error increases, but floor at 0.4
+        confidence = max(0.4, 1.0 - relative_error)
         
         return round(confidence, 4)
