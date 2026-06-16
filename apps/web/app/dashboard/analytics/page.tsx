@@ -53,7 +53,7 @@ export default function AnalyticsPage() {
 
             // 2. Get predictions/recommendations for top stocks only (limit to 5 for speed)
             const stockHoldings = fetchedHoldings.filter(
-                (h: any) => h.symbol && h.symbol !== "Unresolved" && h.asset_type === "STOCK"
+                (h: any) => h.symbol && h.symbol !== "Unresolved" && !h.symbol.endsWith(".UNRESOLVED")
             );
 
             const topStocks = stockHoldings.slice(0, 5);
