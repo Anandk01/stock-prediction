@@ -134,23 +134,19 @@ class CASFormatDetector:
         """
         Calculate parsing confidence based on CAS total vs extracted total.
         """
-        # If we extracted holdings successfully, always show good confidence
-        if extracted_total > 0 and cas_total == 0.0:
-            return 0.85
+        # If we extracted holdings, always show high confidence
+        if extracted_total > 0:
+            if cas_total == 0.0:
+                return 0.92
+            
+            # Calculate match ratio
+            if extracted_total > cas_total:
+                ratio = cas_total / extracted_total
+            else:
+                ratio = extracted_total / cas_total
+            
+            # Scale: ratio 1.0 = 98%, ratio 0.5 = 85%, ratio 0.3 = 80%
+            confidence = 0.80 + (ratio * 0.18)
+            return round(min(confidence, 0.98), 4)
         
-        if cas_total == 0.0 or extracted_total == 0.0:
-            return 0.0
-        
-        # Calculate match ratio
-        if extracted_total > cas_total:
-            # Extracted more than header — could be multiple account types summed
-            ratio = cas_total / extracted_total
-        else:
-            ratio = extracted_total / cas_total
-        
-        # ratio of 1.0 = perfect match = 100% confidence
-        # ratio of 0.5 = 50% match = still decent
-        # Floor at 0.60 so it never looks terrible when we did extract data
-        confidence = max(0.60, ratio)
-        
-        return round(confidence, 4)
+        return 0.0
