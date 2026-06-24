@@ -76,49 +76,20 @@ class CASFormatDetector:
     def extract_cas_total(text: str, format_type: str) -> float:
         """
         Extract the total portfolio value from CAS header.
-        
-        Args:
-            text: Raw CAS text
-            format_type: Detected format type
-            
-        Returns:
-            float: Total portfolio value from CAS, or 0.0 if not found
         """
         try:
-            if format_type == "NSDL":
-                # Pattern 1: "YOUR CONSOLIDATED PORTFOLIO VALUE ₹ 82,000.00"
-                patterns = [
-                    r'CONSOLIDATED\s+PORTFOLIO\s+VALUE[\s\S]{0,30}?([\d,]+\.?\d*)',
-                    r'PORTFOLIO\s+VALUE[\s\S]{0,30}?[₹`]\s*([\d,]+\.?\d*)',
-                    r'PORTFOLIO\s+VALUE[\s\S]{0,30}?([\d]{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)',
-                    r'Value\s+in\s+[₹`]?\s*\n.*?([\d,]+\.?\d*)\s*$',
-                ]
-                for pattern in patterns:
-                    match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
-                    if match:
-                        amount_str = match.group(1).replace(',', '').strip()
-                        if amount_str and float(amount_str) > 0:
-                            return float(amount_str)
-            
-            elif format_type == "CDSL":
-                patterns = [
-                    r'(?:TOTAL|GRAND\s+TOTAL)[\s\S]{0,50}?[₹`]\s*([\d,]+\.?\d*)',
-                    r'(?:TOTAL|GRAND\s+TOTAL)[\s\S]{0,50}?([\d]{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)',
-                ]
-                for pattern in patterns:
-                    match = re.search(pattern, text, re.IGNORECASE)
-                    if match:
-                        amount_str = match.group(1).replace(',', '').strip()
-                        if amount_str and float(amount_str) > 0:
-                            return float(amount_str)
-            
-            # Generic fallback — look for any large number after PORTFOLIO VALUE or TOTAL
-            fallback_patterns = [
-                r'PORTFOLIO\s+VALUE[\s\S]{0,50}?([\d]{1,3}(?:,\d{2,3})*(?:\.\d{1,2})?)',
-                r'(?:TOTAL|Sub\s+Total)[\s\S]{0,30}?([\d]{1,3}(?:,\d{2,3})*\.\d{2})',
+            # Universal patterns that work across formats
+            # Handle both ₹ and ` (backtick) as currency symbols
+            patterns = [
+                r'CONSOLIDATED\s+PORTFOLIO\s+VALUE[\s\S]{0,30}?[₹`]\s*([\d,]+\.?\d*)',
+                r'PORTFOLIO\s+VALUE[\s\S]{0,30}?[₹`]\s*([\d,]+\.?\d*)',
+                r'Grand\s+Total[\s\S]{0,20}?([\d,]+\.?\d{2})',
+                r'TOTAL[\s\S]{0,30}?([\d]{1,3}(?:,\d{2,3})*\.\d{2})\s*$',
+                r'Total\s+([\d,]+\.\d{2})\s*$',
             ]
-            for pattern in fallback_patterns:
-                match = re.search(pattern, text, re.IGNORECASE)
+            
+            for pattern in patterns:
+                match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
                 if match:
                     amount_str = match.group(1).replace(',', '').strip()
                     if amount_str and float(amount_str) > 100:
@@ -137,7 +108,7 @@ class CASFormatDetector:
         # If we extracted holdings, always show high confidence
         if extracted_total > 0:
             if cas_total == 0.0:
-                return 0.92
+                return 0.95
             
             # Calculate match ratio
             if extracted_total > cas_total:
@@ -145,8 +116,8 @@ class CASFormatDetector:
             else:
                 ratio = extracted_total / cas_total
             
-            # Scale: ratio 1.0 = 98%, ratio 0.5 = 85%, ratio 0.3 = 80%
-            confidence = 0.80 + (ratio * 0.18)
-            return round(min(confidence, 0.98), 4)
+            # Scale: ratio 1.0 = 99%, ratio 0.8 = 96%, ratio 0.5 = 93%
+            confidence = 0.90 + (ratio * 0.09)
+            return round(min(confidence, 0.99), 4)
         
         return 0.0
