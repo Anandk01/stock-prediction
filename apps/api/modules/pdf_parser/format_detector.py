@@ -14,24 +14,20 @@ class CASFormatDetector:
     def detect_format(text: str) -> Tuple[str, float]:
         """
         Detect CAS format and return format type with confidence score.
-        
-        Returns:
-            Tuple[str, float]: (format_type, confidence)
-            format_type: "NSDL", "CDSL", "CAMS", "KFINTECH", "UNKNOWN"
-            confidence: 0.0 to 1.0
         """
         text_upper = text.upper()
         
-        # NSDL Detection
+        # NSDL Detection (more lenient patterns)
         nsdl_patterns = [
-            "NATIONAL SECURITIES DEPOSITORY LIMITED",
-            "NSDL CONSOLIDATED ACCOUNT STATEMENT",
-            "NSDL CAS",
-            "NSDL ID:"
+            "NATIONAL SECURITIES DEPOSITORY",
+            "NSDL",
+            "CONSOLIDATED ACCOUNT STATEMENT",
+            "NSDL ID",
+            "NSDL DEMAT",
         ]
         nsdl_matches = sum(1 for pattern in nsdl_patterns if pattern in text_upper)
-        if nsdl_matches >= 2:
-            confidence = min(0.9 + (nsdl_matches * 0.025), 1.0)
+        if nsdl_matches >= 1:
+            confidence = min(0.85 + (nsdl_matches * 0.03), 1.0)
             return ("NSDL", confidence)
         
         # CDSL Detection
@@ -39,18 +35,19 @@ class CASFormatDetector:
             "CENTRAL DEPOSITORY SERVICES",
             "CDSL",
             "DEPOSITORY PARTICIPANT",
-            "DP ID:"
+            "DP ID",
+            "CDSL DEMAT",
         ]
         cdsl_matches = sum(1 for pattern in cdsl_patterns if pattern in text_upper)
-        if cdsl_matches >= 2:
-            confidence = min(0.85 + (cdsl_matches * 0.025), 1.0)
+        if cdsl_matches >= 1:
+            confidence = min(0.85 + (cdsl_matches * 0.03), 1.0)
             return ("CDSL", confidence)
         
         # CAMS Detection
         cams_patterns = [
-            "COMPUTER AGE MANAGEMENT SERVICES",
+            "COMPUTER AGE MANAGEMENT",
             "CAMS",
-            "STATEMENT OF ACCOUNT"
+            "STATEMENT OF ACCOUNT",
         ]
         cams_matches = sum(1 for pattern in cams_patterns if pattern in text_upper)
         if cams_matches >= 2:
@@ -61,12 +58,17 @@ class CASFormatDetector:
         kfintech_patterns = [
             "KFINTECH",
             "KARVY",
-            "STATEMENT OF ACCOUNT"
         ]
         kfintech_matches = sum(1 for pattern in kfintech_patterns if pattern in text_upper)
-        if kfintech_matches >= 2:
+        if kfintech_matches >= 1:
             confidence = min(0.85 + (kfintech_matches * 0.025), 1.0)
             return ("KFINTECH", confidence)
+        
+        # If we find any ISIN patterns or holding-like data, assume NSDL
+        import re
+        isin_count = len(re.findall(r'[A-Z]{2}[A-Z0-9]{10}', text_upper))
+        if isin_count >= 2:
+            return ("NSDL", 0.70)
         
         return ("UNKNOWN", 0.0)
     
