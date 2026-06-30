@@ -72,7 +72,7 @@ export default function LandingPage() {
 
                     {/* Center Nav (Desktop) */}
                     <div className="hidden md:flex items-center gap-8">
-                        {["Features", "How It Works", "Technology"].map((item) => (
+                        {["Features", "How It Works", "Technology", "Security"].map((item) => (
                             <a key={item} href={`#${item.toLowerCase().replace(/\s+/g, "-")}`} className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-300 relative group">
                                 {item}
                                 <span className="absolute -bottom-1 left-0 w-0 h-[2px] bg-cyan-400 group-hover:w-full transition-all duration-300" />
@@ -95,7 +95,7 @@ export default function LandingPage() {
 
                 {mobileOpen && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="md:hidden glass-nav border-t border-white/5 px-6 py-4 space-y-3">
-                        {["Features", "How It Works", "Technology"].map((item) => (
+                        {["Features", "How It Works", "Technology", "Security"].map((item) => (
                             <a key={item} href={`#${item.toLowerCase().replace(/\s+/g, "-")}`} onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-400 hover:text-white py-2">{item}</a>
                         ))}
                     </motion.div>
@@ -313,6 +313,53 @@ export default function LandingPage() {
                             </FadeUp>
                         ))}
                     </div>
+                </div>
+            </section>
+
+            {/* ═══════════════ SECURITY ═══════════════ */}
+            <section id="security" className="relative py-24 px-6">
+                <div className="max-w-4xl mx-auto">
+                    <FadeUp>
+                        <div className="glass-card rounded-3xl p-10 sm:p-14 text-center">
+                            <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                                <svg className="w-8 h-8 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                            </div>
+                            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">Your Data Stays Yours</h2>
+                            <p className="text-gray-400 max-w-lg mx-auto mb-10">
+                                We take your financial privacy seriously. Your portfolio data is processed locally and never shared with third parties.
+                            </p>
+
+                            <div className="grid sm:grid-cols-3 gap-6 text-left">
+                                <div className="flex gap-3">
+                                    <div className="mt-0.5 shrink-0">
+                                        <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-white mb-1">Local SQLite Storage</h4>
+                                        <p className="text-xs text-gray-400 leading-relaxed">All data stored locally on your machine. No cloud databases, no third-party access.</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <div className="mt-0.5 shrink-0">
+                                        <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-white mb-1">No Third-Party Sharing</h4>
+                                        <p className="text-xs text-gray-400 leading-relaxed">Your financial data is never sold or shared with external parties.</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-3">
+                                    <div className="mt-0.5 shrink-0">
+                                        <svg className="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-white mb-1">JWT Authentication</h4>
+                                        <p className="text-xs text-gray-400 leading-relaxed">Secure token-based authentication with session management and password hashing.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </FadeUp>
                 </div>
             </section>
 

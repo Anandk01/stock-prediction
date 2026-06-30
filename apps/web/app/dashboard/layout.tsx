@@ -20,14 +20,11 @@ export default function DashboardLayout({
         }
     }, [status, router]);
 
-    // Prevent back button from going to login/register pages
+    // Clear forward history — user can go back but not forward
     useEffect(() => {
-        window.history.pushState(null, '', window.location.href);
-        const handlePopState = () => {
-            window.history.pushState(null, '', window.location.href);
-        };
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
+        if (window.history.state && window.history.state.idx !== undefined) {
+            window.history.replaceState(null, '', window.location.href);
+        }
     }, []);
 
     if (status === "loading") {

@@ -19,15 +19,6 @@ export default function UploadLayout({
         }
     }, [status, router]);
 
-    useEffect(() => {
-        window.history.pushState(null, '', window.location.href);
-        const handlePopState = () => {
-            window.history.pushState(null, '', window.location.href);
-        };
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
-
     if (status === "loading") {
         return <div className="min-h-screen bg-[#020617] flex items-center justify-center text-cyan-400 font-mono animate-pulse">Loading...</div>;
     }

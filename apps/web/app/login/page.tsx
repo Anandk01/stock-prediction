@@ -16,16 +16,6 @@ export default function LoginPage() {
         }
     }, []);
 
-    // Prevent back navigation to authenticated pages
-    useEffect(() => {
-        window.history.pushState(null, '', window.location.href);
-        const handlePopState = () => {
-            window.history.pushState(null, '', window.location.href);
-        };
-        window.addEventListener('popstate', handlePopState);
-        return () => window.removeEventListener('popstate', handlePopState);
-    }, []);
-
     const [formData, setFormData] = useState({
         email: '',
         password: ''
