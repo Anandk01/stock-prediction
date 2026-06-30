@@ -66,10 +66,11 @@ export default function LandingPage() {
                     <Link href="/" className="flex items-center gap-2.5 group">
                         <LogoMark />
                         <span className="text-lg font-bold tracking-tight">
-                            Profolio <span className="text-cyan-400">AI</span>
+                            Invest<span className="text-cyan-400">Smart</span>
                         </span>
                     </Link>
 
+                    {/* Center Nav (Desktop) */}
                     <div className="hidden md:flex items-center gap-8">
                         {["Features", "How It Works", "Technology"].map((item) => (
                             <a key={item} href={`#${item.toLowerCase().replace(/\s+/g, "-")}`} className="text-sm font-medium text-gray-400 hover:text-white transition-colors duration-300 relative group">
@@ -349,10 +350,10 @@ export default function LandingPage() {
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
                             <LogoMark size={24} />
-                            <span className="text-sm font-bold">Profolio <span className="text-cyan-400">AI</span></span>
+                            <span className="text-sm font-bold">Invest<span className="text-cyan-400">Smart</span></span>
                         </div>
                         <p className="text-xs text-gray-600">
-                            © 2026 Profolio AI · Built with River ML, FinBERT, Next.js & FastAPI
+                            © 2026 InvestSmart · Built with River ML, FinBERT, Next.js & FastAPI
                         </p>
                     </div>
                 </div>

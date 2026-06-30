@@ -28,7 +28,19 @@ export default function RegisterPage() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Validation
+        // Name validation — alphabets only
+        if (formData.firstName && !/^[A-Za-z]+$/.test(formData.firstName)) {
+            setStatus('error');
+            setMessage('First name must contain only alphabets.');
+            return;
+        }
+        if (formData.lastName && !/^[A-Za-z]+$/.test(formData.lastName)) {
+            setStatus('error');
+            setMessage('Last name must contain only alphabets.');
+            return;
+        }
+        
+        // Email validation
         if (!formData.email || !formData.password) {
             setStatus('error');
             setMessage('Email and password are required.');
@@ -42,9 +54,25 @@ export default function RegisterPage() {
             return;
         }
         
-        if (formData.password.length < 6) {
+        // Password validation — at least 8 chars, 1 uppercase, 1 lowercase, 1 number
+        if (formData.password.length < 8) {
             setStatus('error');
-            setMessage('Password must be at least 6 characters long.');
+            setMessage('Password must be at least 8 characters long.');
+            return;
+        }
+        if (!/[A-Z]/.test(formData.password)) {
+            setStatus('error');
+            setMessage('Password must contain at least one uppercase letter.');
+            return;
+        }
+        if (!/[a-z]/.test(formData.password)) {
+            setStatus('error');
+            setMessage('Password must contain at least one lowercase letter.');
+            return;
+        }
+        if (!/[0-9]/.test(formData.password)) {
+            setStatus('error');
+            setMessage('Password must contain at least one number.');
             return;
         }
 
@@ -83,7 +111,7 @@ export default function RegisterPage() {
                     <div className="flex justify-center mb-8">
                         <Link href="/" className="flex items-center gap-2">
                             <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl"></div>
-                            <span className="text-2xl font-black text-white">Profolio <span className="text-cyan-400">AI</span></span>
+                            <span className="text-2xl font-black text-white">Invest<span className="text-cyan-400">Smart</span></span>
                         </Link>
                     </div>
 

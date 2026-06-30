@@ -2,6 +2,7 @@
 CAS Format Detection Module
 Detects the format of uploaded Consolidated Account Statements
 and routes to appropriate parser strategy.
+
 """
 
 import re

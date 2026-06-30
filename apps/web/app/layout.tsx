@@ -10,12 +10,12 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-    title: 'Profolio AI — AI-Powered Portfolio Intelligence',
-    description: 'Upload your brokerage statements, resolve Indian asset symbols automatically, and get deep AI-powered insights with sentiment analysis and predictive modeling.',
-    keywords: ['portfolio', 'AI', 'fintech', 'Indian stocks', 'mutual funds', 'ETFs', 'sentiment analysis'],
+    title: 'InvestSmart: AI - Stock Portfolio Optimization',
+    description: 'AI-powered stock predictions and portfolio optimization using River ML and FinBERT sentiment analysis.',
+    keywords: ['stock prediction', 'AI', 'portfolio optimization', 'Indian stocks', 'machine learning', 'sentiment analysis'],
     openGraph: {
-        title: 'Profolio AI — AI-Powered Portfolio Intelligence',
-        description: 'Smart portfolio analysis for modern Indian investors.',
+        title: 'InvestSmart: AI - Stock Portfolio Optimization',
+        description: 'AI-powered stock predictions for smart investors.',
         type: 'website',
     },
 }

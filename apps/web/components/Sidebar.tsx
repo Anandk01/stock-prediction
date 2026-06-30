@@ -63,7 +63,7 @@ export default function Sidebar() {
                 </div>
                 {!collapsed && (
                     <span className="text-sm font-black tracking-tight text-white truncate">
-                        Profolio AI
+                        InvestSmart
                     </span>
                 )}
             </div>

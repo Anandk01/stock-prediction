@@ -1,12 +1,31 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signIn } from 'next-auth/react';
+import { signIn, signOut, useSession } from 'next-auth/react';
 import { AlertCircle, CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
+    const { data: session } = useSession();
+    
+    // End session when user lands on login page (handles back button)
+    useEffect(() => {
+        if (session) {
+            signOut({ redirect: false });
+        }
+    }, []);
+
+    // Prevent back navigation to authenticated pages
+    useEffect(() => {
+        window.history.pushState(null, '', window.location.href);
+        const handlePopState = () => {
+            window.history.pushState(null, '', window.location.href);
+        };
+        window.addEventListener('popstate', handlePopState);
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+
     const [formData, setFormData] = useState({
         email: '',
         password: ''
@@ -25,17 +44,9 @@ export default function LoginPage() {
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         
-        // Validation
         if (!formData.email || !formData.password) {
             setStatus('error');
             setMessage('Email and password are required.');
-            return;
-        }
-        
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(formData.email)) {
-            setStatus('error');
-            setMessage('Please enter a valid email address.');
             return;
         }
 
@@ -100,7 +111,7 @@ export default function LoginPage() {
                     <div className="flex justify-center mb-8">
                         <Link href="/" className="flex items-center gap-2">
                             <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl"></div>
-                            <span className="text-2xl font-black text-white">Profolio <span className="text-cyan-400">AI</span></span>
+                            <span className="text-2xl font-black text-white">Invest<span className="text-cyan-400">Smart</span></span>
                         </Link>
                     </div>
 

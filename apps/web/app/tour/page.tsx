@@ -54,7 +54,7 @@ export default function TourPage() {
                                 </linearGradient>
                             </defs>
                         </svg>
-                        <span className="text-lg font-bold tracking-tight">Profolio <span className="text-cyan-400">AI</span></span>
+                        <span className="text-lg font-bold tracking-tight">Invest<span className="text-cyan-400">Smart</span></span>
                     </Link>
                     <Link href="/register" className="px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-semibold transition-colors">
                         Create Account
@@ -73,7 +73,7 @@ export default function TourPage() {
                         <span className="text-gradient-animated">chaos into clarity.</span>
                     </h1>
                     <p className="text-xl text-gray-400 max-w-2xl mx-auto leading-relaxed">
-                        A deep dive into the three powerful engines that power Profolio AI:
+                        A deep dive into the three powerful engines that power InvestSmart:
                         The Parser, The Resolver, and The Intelligence.
                     </p>
                 </motion.div>
@@ -304,7 +304,7 @@ export default function TourPage() {
 
             {/* Footer */}
             <footer className="py-12 text-center text-sm text-gray-600 border-t border-white/5">
-                © 2026 Profolio AI. All systems operational.
+                © 2026 InvestSmart. All systems operational.
             </footer>
         </div>
     );
